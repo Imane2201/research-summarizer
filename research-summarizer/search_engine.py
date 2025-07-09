@@ -6,6 +6,7 @@ from typing import List, Dict, Optional
 from duckduckgo_search import DDGS
 from config import Config
 import logging
+import time
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ class SearchEngine:
                 timelimit=None,
                 max_results=max_results
             )
+            time.sleep(2)  # Add delay after search request
             
             for result in search_results:
                 formatted_result = {
@@ -85,6 +87,7 @@ class SearchEngine:
                 timelimit='m',  # Last month
                 max_results=max_results
             )
+            time.sleep(2)  # Add delay after news search request
             
             for result in news_results:
                 formatted_result = {
@@ -123,6 +126,7 @@ class SearchEngine:
         
         # Get both types of results
         web_data = self.search(query, web_results)
+        time.sleep(2)  # Add delay between web and news search
         news_data = self.search_news(query, news_results)
         
         # Combine and return
