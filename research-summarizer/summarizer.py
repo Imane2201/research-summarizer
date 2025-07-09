@@ -2,73 +2,117 @@
 Summarizer Module - Uses LangChain with Azure OpenAI for content summarization
 """
 from typing import List, Dict, Optional, Any
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import AzureOpenAI
-from langchain.chains.summarize import load_summarize_chain
-from langchain.docstore.document import Document
-from langchain.prompts import PromptTemplate
 import logging
 from config import Config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Global variable for LangChain availability
+LANGCHAIN_AVAILABLE = False
+
+# Try to import LangChain components, with fallback
+try:
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    from langchain_openai import AzureOpenAI
+    from langchain.chains.summarize import load_summarize_chain
+    from langchain_core.documents import Document
+    from langchain_core.prompts import PromptTemplate
+    LANGCHAIN_AVAILABLE = True
+    logger.info("LangChain components imported successfully")
+except ImportError as e:
+    logger.warning(f"LangChain not available: {e}")
+    logger.warning("Summarizer will use fallback methods")
+
 class Summarizer:
-    """Content summarizer using LangChain and Azure OpenAI"""
+    """Content summarizer using LangChain and Azure OpenAI (with fallback)"""
     
     def __init__(self):
+        global LANGCHAIN_AVAILABLE
         self.chunk_size = Config.CHUNK_SIZE
         self.chunk_overlap = Config.CHUNK_OVERLAP
         self.max_summary_length = Config.MAX_SUMMARY_LENGTH
         
-        # Initialize Azure OpenAI
-        self.llm = AzureOpenAI(
-            azure_endpoint=Config.AZURE_OPENAI_ENDPOINT,
-            api_key=Config.AZURE_OPENAI_API_KEY,
-            api_version=Config.AZURE_OPENAI_API_VERSION,
-            deployment_name=Config.AZURE_OPENAI_DEPLOYMENT_NAME,
-            temperature=0.3,
-            max_tokens=self.max_summary_length
-        )
+        # Initialize LangChain components if available
+        if LANGCHAIN_AVAILABLE:
+            try:
+                # Initialize Azure OpenAI
+                self.llm = AzureOpenAI(
+                    azure_endpoint=Config.AZURE_OPENAI_ENDPOINT,
+                    api_key=Config.AZURE_OPENAI_API_KEY,
+                    api_version=Config.AZURE_OPENAI_API_VERSION,
+                    deployment_name=Config.AZURE_OPENAI_DEPLOYMENT_NAME,
+                    temperature=0.3,
+                    max_tokens=self.max_summary_length
+                )
+                
+                # Initialize text splitter
+                self.text_splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=self.chunk_size,
+                    chunk_overlap=self.chunk_overlap,
+                    length_function=len,
+                )
+                
+                # Custom prompts
+                self.summary_prompt = PromptTemplate(
+                    template="""
+                    Please provide a comprehensive summary of the following article content.
+                    Focus on key insights, main arguments, and important facts.
+                    Keep the summary concise but informative.
+                    
+                    Article Title: {title}
+                    URL: {url}
+                    
+                    Content:
+                    {text}
+                    
+                    Summary:
+                    """,
+                    input_variables=["title", "url", "text"]
+                )
+                
+                self.final_insights_prompt = PromptTemplate(
+                    template="""
+                    Based on the following article summaries about "{topic}", provide key insights and conclusions.
+                    Identify common themes, contradictions, and important takeaways.
+                    Format as bullet points with clear, actionable insights.
+                    
+                    Article Summaries:
+                    {summaries}
+                    
+                    Key Insights:
+                    """,
+                    input_variables=["topic", "summaries"]
+                )
+                
+                logger.info("LangChain summarizer initialized successfully")
+                
+            except Exception as e:
+                logger.error(f"Failed to initialize LangChain summarizer: {e}")
+                LANGCHAIN_AVAILABLE = False
         
-        # Initialize text splitter
-        self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=self.chunk_size,
-            chunk_overlap=self.chunk_overlap,
-            length_function=len,
-        )
+        if not LANGCHAIN_AVAILABLE:
+            logger.info("Using fallback summarizer (no AI capabilities)")
+    
+    def _simple_summary(self, text: str, max_length: int = 500) -> str:
+        """
+        Simple text summarization (fallback when LangChain is not available)
         
-        # Custom prompts
-        self.summary_prompt = PromptTemplate(
-            template="""
-            Please provide a comprehensive summary of the following article content.
-            Focus on key insights, main arguments, and important facts.
-            Keep the summary concise but informative.
+        Args:
+            text: Text to summarize
+            max_length: Maximum length of summary
             
-            Article Title: {title}
-            URL: {url}
-            
-            Content:
-            {text}
-            
-            Summary:
-            """,
-            input_variables=["title", "url", "text"]
-        )
+        Returns:
+            Simple summary
+        """
+        # Simple approach: take first few sentences
+        sentences = text.split('. ')
+        summary = '. '.join(sentences[:3]) + '.'
         
-        self.final_insights_prompt = PromptTemplate(
-            template="""
-            Based on the following article summaries about "{topic}", provide key insights and conclusions.
-            Identify common themes, contradictions, and important takeaways.
-            Format as bullet points with clear, actionable insights.
-            
-            Article Summaries:
-            {summaries}
-            
-            Key Insights:
-            """,
-            input_variables=["topic", "summaries"]
-        )
+        if len(summary) > max_length:
+            summary = summary[:max_length-3] + '...'
+        
+        return summary
     
     def summarize_single_article(self, article: Dict[str, str]) -> Optional[Dict[str, str]]:
         """
@@ -80,10 +124,20 @@ class Summarizer:
         Returns:
             Dictionary with original article info plus summary
         """
+        global LANGCHAIN_AVAILABLE
         try:
             logger.info(f"Summarizing article: {article['title']}")
             
-            # Prepare text for summarization
+            if not LANGCHAIN_AVAILABLE:
+                # Use simple fallback
+                summary = self._simple_summary(article['text'], self.max_summary_length)
+                return {
+                    **article,
+                    "summary": summary,
+                    "method": "simple_fallback"
+                }
+            
+            # Use LangChain summarization
             text = article['text']
             
             # If text is short enough, summarize directly
@@ -98,7 +152,8 @@ class Summarizer:
                 
                 return {
                     **article,
-                    "summary": summary.strip()
+                    "summary": summary.strip(),
+                    "method": "langchain"
                 }
             
             # For longer texts, use chunking
@@ -115,14 +170,18 @@ class Summarizer:
             
             return {
                 **article,
-                "summary": summary.strip()
+                "summary": summary.strip(),
+                "method": "langchain_chunked"
             }
             
         except Exception as e:
             logger.error(f"Summarization failed for {article['title']}: {str(e)}")
+            # Fallback to simple summary
+            summary = self._simple_summary(article['text'], self.max_summary_length)
             return {
                 **article,
-                "summary": f"Summary unavailable: {str(e)}"
+                "summary": summary,
+                "method": "error_fallback"
             }
     
     def summarize_multiple_articles(self, articles: List[Dict[str, str]]) -> List[Dict[str, str]]:
@@ -158,9 +217,20 @@ class Summarizer:
         Returns:
             Final insights string
         """
+        global LANGCHAIN_AVAILABLE
         try:
             logger.info("Generating final insights")
             
+            if not LANGCHAIN_AVAILABLE:
+                # Simple fallback insights
+                insights = f"Analysis of {len(summarized_articles)} articles about '{topic}':\n\n"
+                insights += "Key findings:\n"
+                for i, article in enumerate(summarized_articles[:5], 1):
+                    insights += f"{i}. {article['title']}\n"
+                insights += f"\nTotal articles analyzed: {len(summarized_articles)}"
+                return insights
+            
+            # Use LangChain for insights
             # Combine all summaries
             summaries_text = "\n\n".join([
                 f"Article: {article['title']}\nSource: {article['url']}\nSummary: {article['summary']}"
@@ -179,7 +249,13 @@ class Summarizer:
             
         except Exception as e:
             logger.error(f"Final insights generation failed: {str(e)}")
-            return f"Insights generation failed: {str(e)}"
+            # Fallback insights
+            insights = f"Analysis of {len(summarized_articles)} articles about '{topic}':\n\n"
+            insights += "Key findings:\n"
+            for i, article in enumerate(summarized_articles[:5], 1):
+                insights += f"{i}. {article['title']}\n"
+            insights += f"\nTotal articles analyzed: {len(summarized_articles)}"
+            return insights
     
     def create_topic_summary(self, topic: str, articles: List[Dict[str, str]]) -> Dict[str, Any]:
         """

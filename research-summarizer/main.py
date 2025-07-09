@@ -27,9 +27,9 @@ def setup_logging(verbose: bool = False):
 def print_banner():
     """Print application banner"""
     banner = """
-🌐 Web Knowledge Aggregator Agent
+Web Knowledge Aggregator Agent
 ==================================
-🔍 Search → 📄 Scrape → 🤖 Summarize → 📝 Report
+Search -> Scrape -> Summarize -> Report
 """
     print(banner)
 
