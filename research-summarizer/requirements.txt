@@ -1,0 +1,25 @@
+# Web Knowledge Aggregator Agent Dependencies
+
+# Core Framework
+langchain==0.1.0
+langchain-openai==0.0.2
+langchain-community==0.0.10
+
+# Web Search (No API key needed)
+duckduckgo-search==4.1.1
+
+# Web Scraping
+newspaper3k==0.2.8
+beautifulsoup4==4.12.2
+requests==2.31.0
+lxml==4.9.3
+
+# Text Processing
+python-dotenv==1.0.0
+
+# Optional UI (for future)
+streamlit==1.29.0
+
+# Utilities
+pydantic==2.5.0
+tiktoken==0.5.2
