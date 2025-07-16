@@ -371,3 +371,6 @@ For issues and questions:
 ---
 
 *Built with ❤️ using Python, LangChain, and Azure OpenAI*
+
+*Made with ❤️ by Imane LABBASSI*
+

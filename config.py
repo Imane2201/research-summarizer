@@ -5,8 +5,20 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Get the directory where this script is located
+SCRIPT_DIR = Path(__file__).parent.absolute()
+
+# Load environment variables from .env file in the script directory
+env_file = SCRIPT_DIR / ".env"
+if env_file.exists():
+    load_dotenv(env_file)
+    print(f"✅ Loaded environment from: {env_file}")
+else:
+    print(f"⚠️ .env file not found at: {env_file}")
+    print("💡 Please create a .env file with your Azure OpenAI credentials")
+    print("   Example .env file content:")
+    print("   AZURE_OPENAI_API_KEY=your_api_key_here")
+    print("   AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/")
 
 class Config:
     """Application configuration"""
