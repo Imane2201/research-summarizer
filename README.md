@@ -372,5 +372,5 @@ For issues and questions:
 
 *Built with ❤️ using Python, LangChain, and Azure OpenAI*
 
-*Made by Imane LABBASSI*
+*Made with ❤️ by Imane LABBASSI*
 
